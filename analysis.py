@@ -19,16 +19,12 @@
 import math
 
 from risk_analyzer import analyze_risk
-from sensor_adapter import sensor_to_report
 
 from disease_severity_spreadability import (
     DISEASE_SEVERITY,
     SPREADABILITY,
     get_spreadability
 )
-
-from compare import compare_diseases
-
 
 # ============================================================
 # CONVERT REPORT INTO HISTORY FORMAT
@@ -302,7 +298,7 @@ def generate_insight(analysis):
     cause = (
         " and ".join(cause_parts)
         if cause_parts
-        else "abnormal water conditions"
+        else "limited environmental evidence"
     )
 
     # ========================================================

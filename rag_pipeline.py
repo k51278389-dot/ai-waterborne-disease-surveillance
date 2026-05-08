@@ -22,7 +22,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3"
 FAISS_WEIGHT = 0.6
 BM25_WEIGHT = 0.4
-DEBUG = False
+DEBUG = True
 # ============================================================
 # 2. Load & Read HTML
 # ============================================================
@@ -78,17 +78,18 @@ def normalize_text(text: str) -> str:
     text = text.replace("–", " ")
     text = text.replace("-", " ")
 
-    text = re.sub(r"\d+\.\d+(\.\d+)?", "", text)  # remove section numbers
-    text = re.sub(r"\n{2,}", "\n", text)          # collapse extra newlines
+    # FIX BROKEN SPACED LETTERS
+    text = re.sub(r'(?<=\b\w) (?=\w\b)', '', text)
+
+    text = re.sub(r"\d+\.\d+(\.\d+)?", "", text)
+    text = re.sub(r"\n{2,}", "\n", text)
     text = re.sub(r"[ \t]+", " ", text)
 
     return text.strip()
 
 def split_sentences(text: str):
-    full_text = " ".join(text)
-    sentences = re.split(r'(?<=[.!?])\s+', full_text)
+    sentences = re.split(r'(?<=[.!?])\s+', text)
     return [s.strip() for s in sentences if s.strip()]
-
 # ============================================================
 # 4. valid chunk filtering (remove very short or irrelevant chunks)
 # ============================================================
@@ -525,10 +526,21 @@ def build_query_single(disease, count, location, cause_type):
 # 15. Query analysis 
 # ============================================================
 def build_query_from_analysis(user_diseases, predicted_diseases, analysis):
+    lines = []
+
+    for d in analysis.get("diseases", []):
+        line = "- " + d["standard"] + ": " + str(d["count"])
+        lines.append(line)
+
+    counts_text = "\n".join(lines)
+
+    dominant = analysis.get("dominant_disease", {}).get("standard", "")
     location = analysis.get("location", "unknown")
     risk = analysis.get("risk_level", "unknown")
 
-    user_text = ", ".join(user_diseases)
+    remaining_user = [d for d in user_diseases if d != dominant]
+    remaining_text = ", ".join(remaining_user) if remaining_user else "None"
+
     predicted_text = ", ".join(predicted_diseases) if predicted_diseases else "None"
 
     return f"""
@@ -537,8 +549,14 @@ Public health situation:
 Location: {location}
 Risk Level: {risk}
 
-USER-REPORTED DISEASES:
-{user_text}
+Disease counts:
+{counts_text}
+
+PRIMARY DISEASE (system determined):
+{dominant}
+
+USER-REPORTED DISEASES (excluding primary):
+{remaining_text}
 
 SYSTEM-PREDICTED ADDITIONAL RISKS:
 {predicted_text}
@@ -546,22 +564,29 @@ SYSTEM-PREDICTED ADDITIONAL RISKS:
 Generate a structured response EXACTLY like this:
 
 PRIMARY THREAT:
-- must be ONE disease from USER-REPORTED list
-- full details (symptoms, prevention, actions)
+- Disease: {dominant}
+- MUST use this disease
+- Symptoms:
+- Prevention:
+- Immediate Actions:
 
 USER-REPORTED DISEASES:
-- list ALL remaining user diseases
-- each must have symptoms + prevention + actions
+- Cover ALL diseases listed above
+- Each must include:
+  - Symptoms
+  - Prevention
+  - Actions
 
 PREDICTED RISKS:
-- list predicted diseases separately
-- shorter explanation
-- clearly mention they are predicted risks
+- Cover ALL predicted diseases
+- Short explanation
+- Clearly mark them as predicted
 
 RULES:
-- DO NOT skip any user disease
+- DO NOT skip any disease
 - DO NOT repeat diseases
-- DO NOT mix user and predicted diseases
+- DO NOT change primary disease
+- DO NOT mix sections
 """
 # ============================================================
 # 15. End-to-End RAG Execution
@@ -594,28 +619,32 @@ def run_rag_pipeline(question,cause_type=None):
 
     if DEBUG:
         print("\n--- HYBRID RESULTS ---")
+
         for i, (chunk, score) in enumerate(hybrid_results):
-            print(f"{i+1}. Score: {score:.4f}")
-            print(chunk["text"])
-            print()
+            print(f"\n[{i+1}] Score: {score:.4f}")
+            print(f"Source: {chunk['source']}")
+            print(f"Section: {chunk.get('section', 'unknown')}")
+            print(chunk["text"][:500])
+
         print("\n--- RERANKED RESULTS ---")
+
         for i, (chunk, score) in enumerate(reranked_results):
-            print(f"{i+1}. Score: {score:.4f}")
-            print(chunk["text"])
-            print()
+            print(f"\n[{i+1}] Score: {score:.4f}")
+            print(f"Source: {chunk['source']}")
+            print(f"Section: {chunk.get('section', 'unknown')}")
+            print(chunk["text"][:500])
 
     # --- retrieval quality check ---
     top_scores = [score for _, score in reranked_results[:3]]
 
-    if not reranked_results or top_scores[0] < 0:
+    if not reranked_results:
         retrieval_status = "none"
-    elif len(top_scores) > 1 and (top_scores[0] - top_scores[1] < 0.2):
+
+    elif len(top_scores) > 1 and abs(top_scores[0] - top_scores[1]) < 0.2:
         retrieval_status = "weak"
-    elif top_scores[0] < 0.5:
-        retrieval_status = "weak"
+
     else:
         retrieval_status = "good"
-
     # --- prompt selection & LLM call ---
     if retrieval_status == "none":
         prompt = f"""
@@ -644,4 +673,17 @@ def run_rag_pipeline(question,cause_type=None):
         answer = ask_llm(prompt)
         return answer, reranked_results
         
+if __name__ == "__main__":
 
+    query = """
+    Multiple cholera cases reported after flood contamination.
+    Patients show diarrhea, vomiting, and dehydration.
+    """
+
+    answer, results = run_rag_pipeline(
+        question=query,
+        cause_type="flood"
+    )
+
+    print("\n=== FINAL ANSWER ===\n")
+    print(answer)
