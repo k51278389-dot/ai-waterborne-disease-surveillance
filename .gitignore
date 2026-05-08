@@ -1,0 +1,33 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VSCode settings
+.vscode/
+
+# Local memory/data
+memory.json
+
+# Environment variables
+.env
+
+# Temporary debug files
+debug_*.py
+
+# Vector databases
+chroma_db/
+faiss_index/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+*_files/
+*.htm
+*.html
+
+health_data/
