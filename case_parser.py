@@ -1139,14 +1139,26 @@ if __name__ == "__main__":
             # =================================================
             # BUILD RAG QUERY
             # =================================================
+            rag_analysis = {
 
+                "location": report["location"],
+
+                "risk_level": analysis["risk_level"],
+
+                "diseases": report["diseases"],
+
+                "dominant_disease": max(
+                    report["diseases"],
+                    key=lambda x: x["count"]
+                )
+            }
             query = build_query_from_analysis(
 
                 user_disease_list,
 
                 predicted_diseases,
 
-                analysis
+                rag_analysis
             )
 
             # =================================================

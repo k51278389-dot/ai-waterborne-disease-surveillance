@@ -22,7 +22,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3"
 FAISS_WEIGHT = 0.6
 BM25_WEIGHT = 0.4
-DEBUG = True
+DEBUG = False
 # ============================================================
 # 2. Load & Read HTML
 # ============================================================
@@ -570,8 +570,9 @@ PRIMARY THREAT:
 - Prevention:
 - Immediate Actions:
 
-USER-REPORTED DISEASES:
-- Cover ALL diseases listed above
+OTHER USER-REPORTED DISEASES:
+- Exclude the primary disease already covered above.
+- Cover only the remaining user-reported diseases.
 - Each must include:
   - Symptoms
   - Prevention
@@ -640,7 +641,7 @@ def run_rag_pipeline(question,cause_type=None):
     if not reranked_results:
         retrieval_status = "none"
 
-    elif len(top_scores) > 1 and abs(top_scores[0] - top_scores[1]) < 0.2:
+    elif len(top_scores) > 1 and abs(top_scores[0] - top_scores[1]) < 0.1:
         retrieval_status = "weak"
 
     else:
@@ -673,17 +674,18 @@ def run_rag_pipeline(question,cause_type=None):
         answer = ask_llm(prompt)
         return answer, reranked_results
         
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    query = """
-    Multiple cholera cases reported after flood contamination.
-    Patients show diarrhea, vomiting, and dehydration.
-    """
+#     query = input("\nEnter symptoms or situation: ")
 
-    answer, results = run_rag_pipeline(
-        question=query,
-        cause_type="flood"
-    )
+#     cause_type = input(
+#         "\nEnter cause type (flood, sewage, drought, contamination): "
+#     )
 
-    print("\n=== FINAL ANSWER ===\n")
-    print(answer)
+#     answer, results = run_rag_pipeline(
+#         question=query,
+#         cause_type=cause_type
+#     )
+
+#     print("\n=== ANSWER ===\n")
+#     print(answer)
